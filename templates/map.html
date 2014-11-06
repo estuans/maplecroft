@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<style>
+    .tweet-list {
+        max-height: 768px;
+        overflow-y: scroll;
+    }
+
+</style>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+var map = null;
+var markers = [];
+var bounds;
+var task_id;
+var polling = false;
+
+function initialize() {
+  var mapOptions = {
+    zoom: 12,
+    center: new google.maps.LatLng(51.38064,-2.357581)
+  };
+
+  map = new google.maps.Map(document.getElementById('map-canvas'),
+      mapOptions);
+  bounds = new google.maps.LatLngBounds();
+}
+
+function loadScript() {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src = 'https://maps.googleapis.com/maps/api/js?v=3.exp&' +
+      'callback=initialize';
+  document.body.appendChild(script);
+}
+
+function addMarker(location) {
+  var marker = new google.maps.Marker({
+    position: location,
+    map: map
+    });
+    markers.push(marker);
+    bounds.extend(location);
+    if (markers.length == 1){
+      map.setZoom(6);
+      map.setCenter(marker.position);
+    }
+    else {
+        if (markers.length > 1) {
+            map.fitBounds(bounds);
+        }
+    }
+
+}
+
+function addCountryMarker(elem) {
+    lat = $(elem).data("lat");
+    lng = $(elem).data("lng");
+    name = $(elem).data("name");
+    count = $(elem).data("tweets");
+
+    //console.log(name);
+
+    var countryLatlng = new google.maps.LatLng(lat,lng);
+    addMarker(countryLatlng);
+    updateTable(name,count);
+}
+
+function assignMap(map){
+  for (var i = 0; i < markers.length; i++) {
+    markers[i].setMap(map);
+  }
+}
+
+function clearMap() {
+    assignMap(null);
+    markers = [];
+    bounds = new google.maps.LatLngBounds();
+}
+
+function updateTable(name,count){
+    newRow = $('<tr class="table-row"><td data-name="name"></td><td data-name="count"></td></tr>');
+    newRow.find("td[data-name='name']").text(name);
+    newRow.find("td[data-name='count']").text(count);
+    $(".active-info table").append(newRow);
+
+}
+
+function clearTable(){
+    $(".active-info table tr.table-row").remove();
+}
+
+function registerTask(){
+   $.ajax('/map-updates').done(function(data){
+      task_id = data['task'];
+      polling = true;
+      setTimeout(pollTask, 3000,task_id);
+   });
+}
+
+function pollTask(task_id){
+   $.ajax("/map-updates?task_id=" + task_id).done(function(data) {
+      results = data;
+      if (results['result']) {
+        pushTweets(results['result']);
+      }
+      else {
+         setTimeout(pollTask, 3000,task_id);
+      }
+   });
+}
+
+function pushTweets(tweets){
+   blank_tweet = $('<div class="well tweet"><a class="tweet-focus"><p class="tweet-date"></p><p class="tweet-text"></p></a><ul class="country-list"></ul></div>');
+   blank_country = $('<li><a class="country-focus"></a></li>');
+
+   //console.log(tweets);
+
+   for(i = 0; i < tweets.length; i++) {
+       var tweet = tweets[i];
+       //console.log(tweet);
+       if(!$('.tweet-list').find(".tweet[data-tweet_id='"+ tweet.tweet_id +"']")) {
+           new_tweet = blank_tweet.clone();
+           new_tweet.data('tweet_id',tweet.tweet_id);
+           new_tweet.find(".tweet-date").text(tweet.tweet_created);
+           new_tweet.find(".tweet-text").text(tweet.tweet);
+           if (tweet.countries) {
+               for (c = 0; c < tweet.countries.length; c++) {
+                   country = tweet.countries[c];
+                   new_country = blank_country.clone();
+                   new_country.find("a").attr('data-name', country.name);
+                   new_country.find("a").attr('data-lat', country.lat);
+                   new_country.find("a").attr('data-lng', country.lng);
+                   new_country.find("a").attr('data-tweets', country.tweets);
+                   new_country.find("a").text(country.name);
+                   new_tweet.find(".country-list").append(new_country);
+                   bindClickables();
+               }
+           }
+           $(".tweet-list").append(new_tweet);
+       }
+       /*
+       else {
+           console.log("Already have tweet: " + tweet.tweet_id);
+       }
+       */
+
+   }
+   $(".fetch-data").text("Fetch Tweets");
+
+}
+
+function bindClickables(){
+
+    $('.country-focus').click(function(){
+            clearMap();
+            clearTable();
+            addCountryMarker(this);
+    });
+
+    $('.tweet-focus').click(function(){
+        clearMap();
+        clearTable();
+        //console.log(this);
+
+        $(this).parent().find('a.country-focus').each(function(idx,val){
+            //console.log(val);
+            addCountryMarker(val);
+        });
+
+    });
+}
+
+$(document).ready(function(){
+
+    bindClickables();
+
+    $(".fetch-data").click(function(){
+        if (!polling) {
+            registerTask();
+        }
+        else {
+            this.text = "Already Fetching Data...";
+        }
+    });
+
+});
+
+window.onload = loadScript;
+</script>
+{% endblock extra_scripts %}
+
+{% block left_column %}
+    <div id="map-canvas" style="width: 100%; height: 100%">
+
+    </div>
+{% endblock %}
+
+{% block right_column %}
+    <div class="active-info">
+        <a class="fetch-data btn btn-large btn-default">Fetch Tweets</a>
+        <table class="table">
+            <th>Active Countries</th><th>Mentions</th>
+        </table>
+    </div>
+    <div class="tweet-list">
+    {% for tweet in tweets %}
+        <div class="well tweet" data-tweet_id="{{ tweet.tweet_id }}">
+          <a class="tweet-focus">
+          <p>{{ tweet.tweet_created }}</p>
+          <p>{{ tweet.tweet }}</p>
+          </a>
+        <ul>
+           {%  for country in tweet.country_of_interest.all %}
+               <li><a class="country-focus" data-name="{{ country.name }}" data-tweets="{{ country.tweet_count }}" data-lat="{{ country.lat }}" data-lng="{{ country.lng }}">{{ country.name }}</a></li>
+           {%  endfor  %}
+        </ul>
+        </div>
+    {% endfor %}
+    </div>
+{% endblock %}

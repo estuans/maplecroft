@@ -1,0 +1,36 @@
+<html>
+
+<head>
+<!-- Latest compiled and minified CSS -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.0/css/bootstrap.min.css">
+
+<!-- Optional theme -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.0/css/bootstrap-theme.min.css">
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+<!-- Latest compiled and minified JavaScript -->
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.0/js/bootstrap.min.js"></script>
+
+{% block styles %}
+{% endblock %}
+
+</head>
+
+<body>
+{% block content %}
+<div class="row">
+<div class="col-md-8">
+    {% block left_column %}{% endblock %}
+</div>
+<div class="col-md-4">
+    {% block right_column %}{% endblock %}
+</div>
+</div>
+
+{% endblock content %}
+</body>
+<footer>
+    {%  block extra_scripts %}
+    {%  endblock extra_scripts %}
+</footer>
+
+</html>
