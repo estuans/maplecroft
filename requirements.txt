@@ -1,3 +1,5 @@
 Django==1.6
 Tweepy
 south
+django-celery
+djcelery
